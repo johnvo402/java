@@ -2,10 +2,11 @@ package program;
 
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.Iterator;
 import java.util.List;
 import object.Fruit;
-import object.Order;
 
 /**
  *
@@ -13,24 +14,13 @@ import object.Order;
  */
 public class ShopFruit {
 
-    private List<Fruit> listFruit = new ArrayList<>();
-    private List<Order> listOrder = new ArrayList<>();
-    private List<Order> addCus;
+    private ArrayList<Fruit> listFruit = new ArrayList<>();
+    private ArrayList<Fruit> listOrder = new ArrayList<>();
     private int nextID = 1;
     Fruit fr;
     private int count = 0;
 
-    private Hashtable<String, List<Order>> viewOrder = new Hashtable<>();
-
-    /**
-     * methods provide memory for objects
-     */
-    public ShopFruit() {
-        listFruit = new ArrayList();
-        viewOrder = new Hashtable<>();
-        listOrder = new ArrayList<>();
-        addCus  = new ArrayList<>();
-    }
+    private Hashtable<String, ArrayList<Fruit>> viewOrder = new Hashtable<>();
 
     /**
      * Method to create fruits in the form of ArrayList
@@ -78,89 +68,115 @@ public class ShopFruit {
     }
 
     /**
+     * Display a list of fruits for buyers to choose from
+     *
+     * @return
+     *
+     */
+    public int displayShopping() {
+        int nextNo = 1;
+        if (listFruit.isEmpty()) {
+            System.out.println("Out of stock, please pay!");
+            return -1;
+        }
+        //print out the list of fruits
+        System.out.println("List of Fruit:");
+        System.out.println("|     No.    |    Fruit Name    |    Origin    |    Price    |");
+        for (Fruit f : listFruit) {
+            System.out.printf("       %-13s%-18s%-15s%-10s\n", nextNo++, f.getNameFruit(), f.getOrigin(), f.getPrice());
+        }
+        //request to choose
+        int selected = IO.getInteger("Enter item you want order: ", "Number must be from 1 to " + listFruit.size(), 1, listFruit.size());
+        return selected;
+
+    }
+
+    /**
      * Method for non-manager users to use and buy fruit
      */
     public void shopping() {
         //If there are no fruits, a message will be printed
         if (listFruit.isEmpty()) {
             System.out.println("Haven't Fruit!");
-        } else {
-            boolean check;
-
-            //print out the list of fruits
-            System.out.println("List of Fruit:");
-            System.out.println("|     No.    |    Fruit Name    |    Origin    |    Price    |");
-            for (Fruit f : listFruit) {
-                System.out.printf("       %-13s%-18s%-15s%-10s\n", f.getIdFruit(), f.getNameFruit(), f.getOrigin(), f.getPrice());
-            }
-            do {
-                //call to the order method
-                order(listOrder);
-                //Ask the user if they want to order now, if not, they will continue to choose more fruits
-                check = nextProgram("Do you want order now? (Y|N) ");
-
-            } while (check == false);
-            //Once completed, it will be added to the invoice
-            bill(listOrder);
+            return;
         }
-
+        ArrayList<Fruit> listOrder = new ArrayList<>();
+        HashMap<Integer, Integer> haveQuantity = new HashMap<>();
+        //call method to order
+        order(haveQuantity, listOrder);
+        if (!listOrder.isEmpty()) {//If listOrder is not empty, the code proceeds to calculate the total amount for the ordered fruits
+            List<Fruit> onlyOrder = new ArrayList<>();
+            //Browse through each product in the listOrder
+            for (Fruit fruit : listOrder) {
+                boolean isDup = false;
+                //check if product already exists in onlyOrder
+                for (Fruit unique : onlyOrder) {
+                    if (fruit.getIdFruit() == (unique.getIdFruit())) {
+                        isDup = true;
+                        break;
+                    }
+                }
+                if (!isDup) {
+                    onlyOrder.add(fruit);
+                }
+            }
+            bill(onlyOrder, listOrder);
+        }
     }
 
     /**
      * The method used to order when the user selects a certain fruit, the user
      * must enter the quantity
      *
-     * @param listItemBought list of fruits to be purchased
+     * @param haveQuantity to store the cumulative number of each fruit
+     * @param listOrder list of fruits to be purchased
      */
-    public void order(List<Order> listItemBought) {
-        boolean checked = true;
-        int selected;
-        Fruit selecFruit;
-        //If the selected fruit is out of stock, print out a notice and ask to re-enter it
-        do {
-            //request to choose
-            selected = IO.getInteger("Enter item you want order: ", "Number must be from 1 to " + listFruit.size(), 1, listFruit.size());
-            //get selected fruit object
-            selecFruit = listFruit.get(selected - 1);
-            if (selecFruit.getQuantity() <= 0) {
-                checked = true;
-                System.out.println("The fruit you chose is out of stock!");
-            } else {
-                checked = false;
-
+    public void order(HashMap<Integer, Integer> haveQuantity, ArrayList<Fruit> listOrder) {
+        //loop allows the user to select fruits for ordering until they choose to stop.
+        while (true) {
+            int num = displayShopping();//call method to take number choice
+            if (num == -1) {
+                break;
             }
-        } while (checked == true);
-
-        System.out.println("You selected: " + selecFruit.getNameFruit());
-        boolean check = true;
-        int quantity = 0;
-        do {
-            //enter the quantity
-            quantity = IO.getInteger("Please input quantity: ", "Number must be greater than 0", 1);
-            //If the quantity entered is more than the existing quantity, then print a message
-            if (quantity > selecFruit.getQuantity()) {
-                System.out.println("The number of requests exceeds the number of existing ones!");
+            Fruit fruit = listFruit.get(num - 1);
+            System.out.println("-Your selected: " + fruit.getNameFruit());
+            int quantity = IO.getInteger("Enter quantity : ", "", 0, fruit.getQuantity());
+            fruit.setQuantity(fruit.getQuantity() - quantity);
+            Fruit fruitInOrder = checkExist(fruit.getIdFruit());
+            //If the fruit type already exists in listOrder
+            if (fruitInOrder != null) {
+                fruitInOrder.setQuantity(fruitInOrder.getQuantity() + quantity);
+                haveQuantity.put(fruit.getIdFruit(), haveQuantity.get(fruit.getIdFruit()) + quantity);
             } else {
-                String nameF = selecFruit.getNameFruit();
-                check = true;
-                //if name exits then add quantity
-                for (Order order : listItemBought) {
-                    if (nameF.equals(order.getNameFruit())) {
-                        order.setQuantity(order.getQuantity() + quantity);
-                        check = false;
+                //If the selected fruit does not exist in listOrder and the quantity is not 0
+                if (quantity != 0) {
+                    boolean isDup = false;
+                    //browse orderedFruit in list Ordered
+                    for (Fruit orderedFruit : listOrder) {
+                        if (orderedFruit.getIdFruit() == (fruit.getIdFruit())) {
+                            orderedFruit.setQuantity(orderedFruit.getQuantity() + quantity);
+                            isDup = true;
+                            break;
+                        }
                     }
+                    if (!isDup) {
+                        listOrder.add(new Fruit(fruit.getIdFruit(), fruit.getNameFruit(), fruit.getPrice(), quantity, fruit.getOrigin()));
+                    }
+                    haveQuantity.put(fruit.getIdFruit(), quantity);
                 }
-                if (check == true) {
-                    //add fruit attributes to order list
-                    listItemBought.add(new Order(selecFruit.getNameFruit(), quantity, selecFruit.getPrice()));
-                }
-                int tempQuantity = selecFruit.getQuantity();
-                //update the existing quantity
-                selecFruit.setQuantity(tempQuantity - quantity);
-                check = false;
             }
-
-        } while (check == true);
+            // Remove fruits with quantity 0 from listOrder
+            Iterator<Fruit> iterator = listFruit.iterator();
+            while (iterator.hasNext()) {
+                Fruit fruitPicked = iterator.next();
+                if (fruitPicked.getQuantity() == 0) {
+                    iterator.remove();
+                }
+            }
+            if (!nextProgram("Do you want to order more(Y/N)? ")) {
+                break;
+            }
+        }
 
     }
 
@@ -168,28 +184,26 @@ public class ShopFruit {
      * Method to print out invoices and add to the table containing customer
      * invoices
      *
-     * @param listItemBought list fruit bought
+     * @param onlyOrder list fruit bought current
+     * @param listOrder list fruit bought
      */
-    public void bill(List<Order> listItemBought) {
+    public void bill(List<Fruit> onlyOrder, ArrayList<Fruit> listOrder) {
         //print bill
         System.out.println("Product      | Quantity | Price | Amount ");
         double total = 0;
-        for (Order f : listItemBought) {
-            System.out.printf("%-18s%-8s%-8s%-10s\n", f.getNameFruit(), f.getQuantity(), f.getPrice(), f.getAmount());
-            total += f.getAmount();
+        //prin bill
+        for (Fruit f : onlyOrder) {
+            double amount = f.getPrice() * f.getQuantity();
+            System.out.printf("%-18s%-8s%-8s%-10s\n", f.getNameFruit(), f.getQuantity(), f.getPrice(), amount);
+            total += amount;
         }
         System.out.println("Total: " + total);
-        for (Order order : listItemBought) {
-            addCus.add(order);
-        }
-        listItemBought.clear();
         //ask enter name
         String nameCustomer = IO.getString("Input your name: ", "Not allow empty string! Pls enter again!");
         //add hashtabel with key is name customer, value is list fruit bought
         String name = formatWord(nameCustomer);
         String finalName = setName(name);
-        viewOrder.put(finalName, addCus);
-
+        viewOrder.put(finalName, listOrder);
     }
 
     /**
@@ -208,9 +222,10 @@ public class ShopFruit {
                 System.out.println("Customer: " + nameCus);
                 System.out.println("Product      | Quantity | Price | Amount ");
                 double total = 0;
-                for (Order f : viewOrder.get(nameCustomer)) {
-                    System.out.printf("%-18s%-8s%-8s%-10s\n", f.getNameFruit(), f.getQuantity(), f.getPrice(), f.getAmount());
-                    total += f.getAmount();
+                for (Fruit f : viewOrder.get(nameCustomer)) {
+                    double amount = f.getPrice() * f.getQuantity();
+                    System.out.printf("%-18s%-8s%-8s%-10s\n", f.getNameFruit(), f.getQuantity(), f.getPrice(), amount);
+                    total += amount;
                 }
                 System.out.println("Total: " + total);
             }
@@ -245,19 +260,38 @@ public class ShopFruit {
     public String setName(String str) {
         String name;
         do {
-//            name = IO.getString("Enter name:", "[A-Za-z0-9\\\\s ]*[A-Za-z ][A-Za-z0-9\\\\s ]*");
             name = str.trim();
-            for (String name_key : viewOrder.keySet()) {//browse the orders in the hash table
-                int index = name_key.indexOf("-");//for the index position is the input name and the position is marked with -
-                if (index != -1) {//if it see -
-                    String nameNotCount = name_key.substring(0, index); //nameNotCount is the name obtained by slicing the string to get from the beginning to the end of the name
-                    if (name.equals(nameNotCount)) {//if it is equal to the entered name then count up
-                        count++;//   // Save information for both orders separately
+            //browse the orders in the hash table
+            for (String name_key : viewOrder.keySet()) {
+                //marked with -
+                int index = name_key.indexOf("-");
+                if (index != -1) {
+                    String nameNotCount = name_key.substring(0, index);
+                    if (name.equals(nameNotCount)) {
+                        count++;
                     }
                 }
             }
         } while (name.isEmpty());
-        System.out.println("***Order information saved");//print message success
-        return name + "-" + count;//automatically assigns a name followed by a - and then the number of occurrences of that name
+        System.out.println("Order information saved");
+        return name + "-" + count;
+    }
+
+    /**
+     * check if the product ordered by the user is in stock by id , if yes then
+     * return that product
+     *
+     * @param id : id input is entered by the user to find the fruit to order
+     * @return fruit found by id
+     */
+    public Fruit checkExist(int id) {
+        ArrayList<Fruit> listOrder = new ArrayList<>();
+        //each Fruit object in the inStock list using an enhanced for loop.
+        for (Fruit fruit : listOrder) {
+            if (fruit.getIdFruit() == (id)) {
+                return fruit;
+            }
+        }
+        return null;
     }
 }
